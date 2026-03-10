@@ -8,6 +8,8 @@ export function middleware(request: NextRequest) {
     pathname === '/login' ||
     pathname === '/api/auth' ||
     pathname === '/api/scrape' ||
+    pathname === '/api/classify' ||
+    pathname === '/api/draft' ||
     pathname === '/api/init-db'
   ) {
     return NextResponse.next();
