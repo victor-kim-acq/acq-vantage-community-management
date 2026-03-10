@@ -7,7 +7,8 @@ export const maxDuration = 300; // 5 minutes for Vercel
 
 export async function GET(request: NextRequest) {
   const secret = request.nextUrl.searchParams.get('secret');
-  if (secret !== process.env.CRON_SECRET) {
+  const hasCookie = request.cookies.get('acq_auth')?.value === 'authenticated';
+  if (secret !== process.env.CRON_SECRET && !hasCookie) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

@@ -34,7 +34,7 @@ export default function PostDetail({ postId, onStatusChange }: PostDetailProps) 
       const res = await fetch('/api/draft', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postId, secret: '' }),
+        body: JSON.stringify({ postId }),
       });
       const data = await res.json();
       if (data.drafts) {

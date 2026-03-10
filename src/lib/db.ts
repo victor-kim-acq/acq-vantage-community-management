@@ -77,12 +77,16 @@ export async function upsertPost(post: Omit<Post, 'topic' | 'role' | 'classifica
     INSERT INTO posts (id, slug, title, content, post_type, created_at, updated_at, comment_count, upvotes, is_pinned, author_id, author_name, author_first_name, author_last_name, author_bio, scraped_at, skool_url)
     VALUES (${post.id}, ${post.slug}, ${post.title}, ${post.content}, ${post.postType}, ${post.createdAt}, ${post.updatedAt}, ${post.commentCount}, ${post.upvotes}, ${post.isPinned}, ${post.authorId}, ${post.authorName}, ${post.authorFirstName}, ${post.authorLastName}, ${post.authorBio}, NOW(), ${post.skoolUrl})
     ON CONFLICT (id) DO UPDATE SET
+      slug = EXCLUDED.slug,
       title = EXCLUDED.title,
       content = EXCLUDED.content,
       updated_at = EXCLUDED.updated_at,
       comment_count = EXCLUDED.comment_count,
       upvotes = EXCLUDED.upvotes,
       is_pinned = EXCLUDED.is_pinned,
+      author_name = EXCLUDED.author_name,
+      author_first_name = EXCLUDED.author_first_name,
+      author_last_name = EXCLUDED.author_last_name,
       author_bio = EXCLUDED.author_bio,
       scraped_at = NOW()
     RETURNING (xmax = 0) AS is_new

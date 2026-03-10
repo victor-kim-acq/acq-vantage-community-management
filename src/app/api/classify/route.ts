@@ -8,7 +8,8 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const authSecret = secret || body.secret;
 
-  if (authSecret !== process.env.CRON_SECRET) {
+  const hasCookie = request.cookies.get('acq_auth')?.value === 'authenticated';
+  if (authSecret !== process.env.CRON_SECRET && !hasCookie) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

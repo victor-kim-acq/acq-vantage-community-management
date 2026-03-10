@@ -63,12 +63,7 @@ export default function Dashboard() {
   const handleScrape = async () => {
     setLoading(prev => ({ ...prev, scraping: true }));
     try {
-      const secret = prompt('Enter cron secret:');
-      if (!secret) {
-        setLoading(prev => ({ ...prev, scraping: false }));
-        return;
-      }
-      const res = await fetch(`/api/scrape?secret=${encodeURIComponent(secret)}&pages=3`);
+      const res = await fetch('/api/scrape?pages=3');
       const data = await res.json();
       if (data.error) {
         alert(`Scrape failed: ${data.error}`);
@@ -86,15 +81,10 @@ export default function Dashboard() {
   const handleClassify = async () => {
     setLoading(prev => ({ ...prev, classifying: true }));
     try {
-      const secret = prompt('Enter cron secret:');
-      if (!secret) {
-        setLoading(prev => ({ ...prev, classifying: false }));
-        return;
-      }
-      const res = await fetch(`/api/classify?secret=${encodeURIComponent(secret)}`, {
+      const res = await fetch('/api/classify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret }),
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (data.error) {

@@ -10,7 +10,10 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const { postId, secret } = body;
 
-  if (secret !== process.env.CRON_SECRET) {
+  // Allow access via cron secret OR logged-in session cookie
+  const hasSecret = secret === process.env.CRON_SECRET;
+  const hasCookie = request.cookies.get('acq_auth')?.value === 'authenticated';
+  if (!hasSecret && !hasCookie) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
