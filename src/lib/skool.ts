@@ -62,20 +62,20 @@ export async function fetchPosts(buildId: string, page: number): Promise<SkoolPo
 
     return {
       id: post.id as string,
-      slug: metadata?.slug as string || '',
-      title: metadata?.title as string || '',
-      content: metadata?.content as string || '',
-      postType: metadata?.type as string || '',
-      createdAt: post.created_at as string,
-      updatedAt: post.updated_at as string,
-      commentCount: metadata?.comments_count as number || 0,
-      upvotes: metadata?.upvotes as number || 0,
-      isPinned: metadata?.is_pinned as boolean || false,
-      authorId: user?.id as string || '',
-      authorName: user?.name as string || '',
-      authorFirstName: user?.first_name as string || '',
-      authorLastName: user?.last_name as string || '',
-      authorBio: userMetadata?.bio as string || '',
+      slug: (post.name as string) || '',
+      title: (metadata?.title as string) || '',
+      content: (metadata?.content as string) || '',
+      postType: (post.postType as string) || '',
+      createdAt: (post.createdAt as string) || '',
+      updatedAt: (post.updatedAt as string) || '',
+      commentCount: (metadata?.comments as number) || 0,
+      upvotes: (metadata?.upvotes as number) || 0,
+      isPinned: !(post.noComment as boolean),
+      authorId: (user?.id as string) || '',
+      authorName: `${(user?.firstName as string) || ''} ${(user?.lastName as string) || ''}`.trim(),
+      authorFirstName: (user?.firstName as string) || '',
+      authorLastName: (user?.lastName as string) || '',
+      authorBio: (userMetadata?.bio as string) || '',
     };
   });
 }
@@ -119,7 +119,7 @@ export async function fetchComments(postId: string): Promise<Comment[]> {
   }
 
   const data = await res.json();
-  const children = data?.data?.post_tree?.children || [];
+  const children = data?.post_tree?.children || [];
   return flattenComments(children);
 }
 
@@ -143,7 +143,7 @@ function flattenComments(children: Record<string, unknown>[], parentId: string |
       parentId: (c.parent_id as string) || parentId,
       rootId: (c.root_id as string) || null,
       authorId: (user?.id as string) || '',
-      authorName: (user?.name as string) || '',
+      authorName: `${(user?.first_name as string) || ''} ${(user?.last_name as string) || ''}`.trim() || (user?.name as string) || '',
       authorFirstName: (user?.first_name as string) || '',
       authorLastName: (user?.last_name as string) || '',
       authorBio: (userMetadata?.bio as string) || '',
