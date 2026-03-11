@@ -102,11 +102,19 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen p-6 max-w-7xl mx-auto">
-      <header className="mb-8">
-        <h1 className="text-2xl font-bold text-white">ACQ Vantage Community Manager</h1>
-        <p className="text-gray-400 text-sm mt-1">
-          Manage replies for skool.com/acq · {total} posts
-        </p>
+      <header className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">ACQ Vantage Community Manager</h1>
+          <p className="text-gray-400 text-sm mt-1">
+            Manage replies for skool.com/acq · {total} posts
+          </p>
+        </div>
+        <a
+          href="/dashboard"
+          className="bg-[#1a1d27] text-[#6c8cff] hover:text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+        >
+          Dashboard &rarr;
+        </a>
       </header>
 
       <StatsBar key={refreshKey} />

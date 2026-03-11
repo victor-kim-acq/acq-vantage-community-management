@@ -5,7 +5,7 @@ A full-stack Next.js app for the ACQ Vantage team (Saulo, Caio, Victor, Samaria)
 ## Tech Stack
 - **Framework**: Next.js 14+ (App Router, TypeScript)
 - **Styling**: Tailwind CSS (dark theme)
-- **Database**: Vercel Postgres
+- **Database**: Neon Postgres (via Vercel Postgres SDK)
 - **AI**: Anthropic API (claude-sonnet-4-20250514)
 - **Deployment**: Vercel (with cron for daily scraping)
 
@@ -16,12 +16,16 @@ npm install
 npm run dev
 ```
 
-Required environment variables (see `.env.local.example`):
+Create a `.env.local` file (gitignored) with the required variables. See `.env.local.example` for the template.
+
+**Important**: `POSTGRES_URL` must point to the Neon database (not localhost). The connection string format is `postgresql://<user>:<pass>@<host>.neon.tech/neondb?sslmode=require`.
+
+Required environment variables:
 - `SKOOL_AUTH_TOKEN` — Skool JWT (expires Jan 2027)
 - `SKOOL_CLIENT_ID` — Skool client ID
 - `SKOOL_GROUP_ID` — Skool group ID for ACQ
 - `ANTHROPIC_API_KEY` — Anthropic API key
-- `POSTGRES_URL` — Vercel Postgres connection string
+- `POSTGRES_URL` — Neon Postgres connection string (not localhost)
 - `CRON_SECRET` — Secret for authenticating cron/manual API calls
 
 ## Database Setup
