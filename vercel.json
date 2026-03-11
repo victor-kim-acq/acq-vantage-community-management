@@ -3,6 +3,10 @@
     {
       "path": "/api/scrape?secret=${CRON_SECRET}",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/scrape-members?secret=${CRON_SECRET}",
+      "schedule": "0 15 * * 0"
     }
   ]
 }

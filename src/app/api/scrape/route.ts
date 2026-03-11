@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getBuildId, fetchAllPosts, fetchCommentsForPosts } from '@/lib/skool';
 import { initializeDatabase, upsertPost, upsertComment } from '@/lib/db';
+import { classifyPosts } from '@/lib/classify';
 import { ScrapeResult } from '@/types';
 
 export const maxDuration = 300; // 5 minutes for Vercel
@@ -64,7 +65,19 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(result);
+    // Step 5: Auto-classify any unclassified posts
+    let classificationResult = { classified: 0, errors: 0 };
+    try {
+      classificationResult = await classifyPosts();
+    } catch (classifyError) {
+      console.error('Auto-classification failed (scrape still succeeded):', classifyError);
+    }
+
+    return NextResponse.json({
+      ...result,
+      classified: classificationResult.classified,
+      classificationErrors: classificationResult.errors,
+    });
   } catch (error) {
     console.error('Scrape failed:', error);
     return NextResponse.json(
