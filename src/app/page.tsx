@@ -109,12 +109,20 @@ export default function Dashboard() {
             Manage replies for skool.com/acq · {total} posts
           </p>
         </div>
-        <a
-          href="/dashboard"
-          className="bg-[#1a1d27] text-[#6c8cff] hover:text-white px-4 py-2 rounded text-sm font-medium transition-colors"
-        >
-          Dashboard &rarr;
-        </a>
+        <div className="flex gap-2">
+          <a
+            href="/members"
+            className="bg-[#1a1d27] text-[#6c8cff] hover:text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+          >
+            Members
+          </a>
+          <a
+            href="/dashboard"
+            className="bg-[#1a1d27] text-[#6c8cff] hover:text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+          >
+            Dashboard
+          </a>
+        </div>
       </header>
 
       <StatsBar key={refreshKey} />

@@ -298,7 +298,8 @@ function Header({ range, setRange }: { range: string; setRange: (r: string) => v
       <div>
         <div className="flex items-center gap-4 mb-1">
           <h1 className="text-2xl font-bold text-white">Analytics Dashboard</h1>
-          <a href="/" className="text-sm text-[#6c8cff] hover:text-[#5a7af0]">&larr; Back to Posts</a>
+          <a href="/" className="text-sm text-[#6c8cff] hover:text-[#5a7af0]">&larr; Posts</a>
+          <a href="/members" className="text-sm text-[#6c8cff] hover:text-[#5a7af0]">Members</a>
         </div>
         <p className="text-gray-400 text-sm">Community engagement metrics for skool.com/acq</p>
       </div>
