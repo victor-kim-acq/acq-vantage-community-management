@@ -10,7 +10,8 @@ export function middleware(request: NextRequest) {
     pathname === '/api/scrape' ||
     pathname === '/api/classify' ||
     pathname === '/api/draft' ||
-    pathname === '/api/init-db'
+    pathname === '/api/init-db' ||
+    pathname === '/api/scrape-members'
   ) {
     return NextResponse.next();
   }

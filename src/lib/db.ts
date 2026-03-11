@@ -70,6 +70,50 @@ export async function initializeDatabase() {
   await sql`CREATE INDEX IF NOT EXISTS idx_posts_reply_status ON posts(reply_status)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id)`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS members (
+      id TEXT PRIMARY KEY,
+      slug TEXT,
+      first_name TEXT,
+      last_name TEXT,
+      display_name TEXT,
+      email TEXT,
+      invite_email TEXT,
+      billing_email TEXT,
+      bio TEXT,
+      location TEXT,
+      link_linkedin TEXT,
+      link_instagram TEXT,
+      link_website TEXT,
+      link_youtube TEXT,
+      link_facebook TEXT,
+      link_twitter TEXT,
+      myers_briggs TEXT,
+      picture_url TEXT,
+      account_created_at TIMESTAMPTZ,
+      member_joined_at TIMESTAMPTZ,
+      last_online_at TIMESTAMPTZ,
+      member_role TEXT,
+      attribution TEXT,
+      invited_by_id TEXT,
+      invited_by_name TEXT,
+      approved_by_id TEXT,
+      request_location TEXT,
+      survey_revenue_bracket TEXT,
+      survey_website TEXT,
+      survey_phone TEXT,
+      subscription_amount INTEGER,
+      subscription_currency TEXT,
+      subscription_interval TEXT,
+      subscription_tier TEXT,
+      stripe_subscription_id TEXT,
+      scraped_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_members_member_role ON members(member_role)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_members_attribution ON members(attribution)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_members_joined ON members(member_joined_at)`;
 }
 
 export async function upsertPost(post: Omit<Post, 'topic' | 'role' | 'classificationReasoning' | 'suggestedRepliers' | 'voiceProfile' | 'replyStatus' | 'assignedTo' | 'classifiedAt'>) {
@@ -241,6 +285,58 @@ export async function getStats() {
     FROM posts
   `;
   return result.rows[0];
+}
+
+export async function upsertMember(m: {
+  id: string; slug: string; firstName: string; lastName: string; displayName: string;
+  email: string; inviteEmail: string; billingEmail: string; bio: string; location: string;
+  linkLinkedin: string; linkInstagram: string; linkWebsite: string; linkYoutube: string;
+  linkFacebook: string; linkTwitter: string; myersBriggs: string; pictureUrl: string;
+  accountCreatedAt: string; memberJoinedAt: string; lastOnlineAt: string; memberRole: string;
+  attribution: string; invitedById: string; invitedByName: string; approvedById: string;
+  requestLocation: string; surveyRevenueBracket: string; surveyWebsite: string; surveyPhone: string;
+  subscriptionAmount: number | null; subscriptionCurrency: string; subscriptionInterval: string;
+  subscriptionTier: string; stripeSubscriptionId: string;
+}): Promise<boolean> {
+  const result = await sql`
+    INSERT INTO members (
+      id, slug, first_name, last_name, display_name, email, invite_email, billing_email,
+      bio, location, link_linkedin, link_instagram, link_website, link_youtube, link_facebook, link_twitter,
+      myers_briggs, picture_url, account_created_at, member_joined_at, last_online_at, member_role,
+      attribution, invited_by_id, invited_by_name, approved_by_id, request_location,
+      survey_revenue_bracket, survey_website, survey_phone,
+      subscription_amount, subscription_currency, subscription_interval, subscription_tier, stripe_subscription_id,
+      scraped_at
+    ) VALUES (
+      ${m.id}, ${m.slug}, ${m.firstName}, ${m.lastName}, ${m.displayName}, ${m.email}, ${m.inviteEmail}, ${m.billingEmail},
+      ${m.bio}, ${m.location}, ${m.linkLinkedin}, ${m.linkInstagram}, ${m.linkWebsite}, ${m.linkYoutube}, ${m.linkFacebook}, ${m.linkTwitter},
+      ${m.myersBriggs}, ${m.pictureUrl}, ${m.accountCreatedAt || null}, ${m.memberJoinedAt || null}, ${m.lastOnlineAt || null}, ${m.memberRole},
+      ${m.attribution}, ${m.invitedById}, ${m.invitedByName}, ${m.approvedById}, ${m.requestLocation},
+      ${m.surveyRevenueBracket}, ${m.surveyWebsite}, ${m.surveyPhone},
+      ${m.subscriptionAmount}, ${m.subscriptionCurrency}, ${m.subscriptionInterval}, ${m.subscriptionTier}, ${m.stripeSubscriptionId},
+      NOW()
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      slug = EXCLUDED.slug, first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name,
+      display_name = EXCLUDED.display_name, email = EXCLUDED.email, invite_email = EXCLUDED.invite_email,
+      billing_email = EXCLUDED.billing_email, bio = EXCLUDED.bio, location = EXCLUDED.location,
+      link_linkedin = EXCLUDED.link_linkedin, link_instagram = EXCLUDED.link_instagram,
+      link_website = EXCLUDED.link_website, link_youtube = EXCLUDED.link_youtube,
+      link_facebook = EXCLUDED.link_facebook, link_twitter = EXCLUDED.link_twitter,
+      myers_briggs = EXCLUDED.myers_briggs, picture_url = EXCLUDED.picture_url,
+      account_created_at = EXCLUDED.account_created_at, member_joined_at = EXCLUDED.member_joined_at,
+      last_online_at = EXCLUDED.last_online_at, member_role = EXCLUDED.member_role,
+      attribution = EXCLUDED.attribution, invited_by_id = EXCLUDED.invited_by_id,
+      invited_by_name = EXCLUDED.invited_by_name, approved_by_id = EXCLUDED.approved_by_id,
+      request_location = EXCLUDED.request_location,
+      survey_revenue_bracket = EXCLUDED.survey_revenue_bracket, survey_website = EXCLUDED.survey_website,
+      survey_phone = EXCLUDED.survey_phone, subscription_amount = EXCLUDED.subscription_amount,
+      subscription_currency = EXCLUDED.subscription_currency, subscription_interval = EXCLUDED.subscription_interval,
+      subscription_tier = EXCLUDED.subscription_tier, stripe_subscription_id = EXCLUDED.stripe_subscription_id,
+      scraped_at = NOW()
+    RETURNING (xmax = 0) AS is_new
+  `;
+  return result.rows[0]?.is_new as boolean;
 }
 
 // Row mappers

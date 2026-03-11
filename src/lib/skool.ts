@@ -194,6 +194,177 @@ export async function fetchCommentsForPosts(
   return results;
 }
 
+// ── Members scraper ─────────────────────────────────────────────────────────
+
+export interface SkoolMember {
+  id: string;
+  slug: string;
+  firstName: string;
+  lastName: string;
+  displayName: string;
+  email: string;
+  inviteEmail: string;
+  billingEmail: string;
+  bio: string;
+  location: string;
+  linkLinkedin: string;
+  linkInstagram: string;
+  linkWebsite: string;
+  linkYoutube: string;
+  linkFacebook: string;
+  linkTwitter: string;
+  myersBriggs: string;
+  pictureUrl: string;
+  accountCreatedAt: string;
+  memberJoinedAt: string;
+  lastOnlineAt: string;
+  memberRole: string;
+  attribution: string;
+  invitedById: string;
+  invitedByName: string;
+  approvedById: string;
+  requestLocation: string;
+  surveyRevenueBracket: string;
+  surveyWebsite: string;
+  surveyPhone: string;
+  subscriptionAmount: number | null;
+  subscriptionCurrency: string;
+  subscriptionInterval: string;
+  subscriptionTier: string;
+  stripeSubscriptionId: string;
+}
+
+function parseSurvey(surveyStr: string): { revenue?: string; website?: string; phone?: string } {
+  if (!surveyStr) return {};
+  try {
+    const data = JSON.parse(surveyStr);
+    // Survey can be an object or array of answers
+    if (Array.isArray(data)) {
+      const result: { revenue?: string; website?: string; phone?: string } = {};
+      for (const item of data) {
+        const answer = item?.answer || item?.a || '';
+        const question = (item?.question || item?.q || '').toLowerCase();
+        if (question.includes('revenue') || question.includes('earning') || question.includes('money')) {
+          result.revenue = answer;
+        } else if (question.includes('website') || question.includes('url')) {
+          result.website = answer;
+        } else if (question.includes('phone') || question.includes('number')) {
+          result.phone = answer;
+        }
+      }
+      return result;
+    }
+    return {
+      revenue: data.revenue || data.revenueBracket || '',
+      website: data.website || data.url || '',
+      phone: data.phone || data.phoneNumber || '',
+    };
+  } catch {
+    return {};
+  }
+}
+
+function parseSubscription(mmbpStr: string): { amount?: number; currency?: string; interval?: string; tier?: string } {
+  if (!mmbpStr) return {};
+  try {
+    const data = JSON.parse(mmbpStr);
+    return {
+      amount: data.amount || data.unit_amount || null,
+      currency: data.currency || '',
+      interval: data.recurring_interval || data.interval || '',
+      tier: data.tier || data.plan || '',
+    };
+  } catch {
+    return {};
+  }
+}
+
+function parseSkoolMember(user: Record<string, unknown>): SkoolMember {
+  const meta = (user.metadata || {}) as Record<string, unknown>;
+  const member = (user.member || {}) as Record<string, unknown>;
+  const memberMeta = (member.metadata || {}) as Record<string, unknown>;
+  const aflData = (user.aflUserData || {}) as Record<string, unknown>;
+
+  const survey = parseSurvey((memberMeta.survey as string) || '');
+  const subscription = parseSubscription((memberMeta.mmbp as string) || '');
+
+  return {
+    id: (user.id as string) || '',
+    slug: (user.name as string) || '',
+    firstName: (user.firstName as string) || '',
+    lastName: (user.lastName as string) || '',
+    displayName: `${(user.firstName as string) || ''} ${(user.lastName as string) || ''}`.trim(),
+    email: (user.email as string) || '',
+    inviteEmail: (member.inviteEmail as string) || '',
+    billingEmail: (memberMeta.mbme as string) || '',
+    bio: (meta.bio as string) || '',
+    location: (meta.location as string) || '',
+    linkLinkedin: (meta.linkLinkedin as string) || '',
+    linkInstagram: (meta.linkInstagram as string) || '',
+    linkWebsite: (meta.linkWebsite as string) || '',
+    linkYoutube: (meta.linkYoutube as string) || '',
+    linkFacebook: (meta.linkFacebook as string) || '',
+    linkTwitter: (meta.linkTwitter as string) || '',
+    myersBriggs: (meta.myersBriggs as string) || '',
+    pictureUrl: (meta.pictureProfile as string) || '',
+    accountCreatedAt: (user.createdAt as string) || '',
+    memberJoinedAt: (member.createdAt as string) || '',
+    lastOnlineAt: (meta.lastOffline as string) || (memberMeta.lastOffline as string) || '',
+    memberRole: (member.role as string) || '',
+    attribution: (memberMeta.attrComp as string) || '',
+    invitedById: (memberMeta.invitedBy as string) || '',
+    invitedByName: aflData
+      ? `${(aflData.firstName as string) || ''} ${(aflData.lastName as string) || ''}`.trim()
+      : '',
+    approvedById: (memberMeta.approvedBy as string) || '',
+    requestLocation: (memberMeta.requestLocation as string) || '',
+    surveyRevenueBracket: survey.revenue || '',
+    surveyWebsite: survey.website || '',
+    surveyPhone: survey.phone || '',
+    subscriptionAmount: subscription.amount || null,
+    subscriptionCurrency: subscription.currency || '',
+    subscriptionInterval: subscription.interval || '',
+    subscriptionTier: subscription.tier || '',
+    stripeSubscriptionId: (memberMeta.msbs as string) || '',
+  };
+}
+
+export async function fetchMembers(buildId: string, page: number): Promise<SkoolMember[]> {
+  const url = `https://www.skool.com/_next/data/${buildId}/${SKOOL_GROUP}/-/members.json?p=${page}`;
+  const res = await fetch(url, { headers: getHeaders() });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch members page ${page}: ${res.status} ${res.statusText}`);
+  }
+
+  const data = await res.json();
+  const users = data?.pageProps?.users || [];
+  return users.map((u: Record<string, unknown>) => parseSkoolMember(u));
+}
+
+export async function fetchAllMembers(buildId: string): Promise<SkoolMember[]> {
+  const allMembers: SkoolMember[] = [];
+  const seenIds = new Set<string>();
+  let page = 1;
+
+  while (true) {
+    const members = await fetchMembers(buildId, page);
+
+    if (members.length === 0) break;
+
+    for (const m of members) {
+      if (seenIds.has(m.id)) continue;
+      seenIds.add(m.id);
+      allMembers.push(m);
+    }
+
+    page++;
+    await delay(1000);
+  }
+
+  return allMembers;
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }

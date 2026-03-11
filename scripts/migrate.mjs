@@ -5,6 +5,21 @@
  */
 
 import pg from 'pg';
+import { readFileSync, existsSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const envPath = join(__dirname, '..', '.env.local');
+if (existsSync(envPath)) {
+  for (const line of readFileSync(envPath, 'utf-8').split('\n')) {
+    const t = line.trim();
+    if (!t || t.startsWith('#')) continue;
+    const eq = t.indexOf('=');
+    if (eq === -1) continue;
+    if (!process.env[t.slice(0, eq)]) process.env[t.slice(0, eq)] = t.slice(eq + 1);
+  }
+}
 
 const { Client } = pg;
 
@@ -98,6 +113,58 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id);
     `,
   },
+  {
+    name: 'Create members table',
+    sql: `
+      CREATE TABLE IF NOT EXISTS members (
+        id TEXT PRIMARY KEY,
+        slug TEXT,
+        first_name TEXT,
+        last_name TEXT,
+        display_name TEXT,
+        email TEXT,
+        invite_email TEXT,
+        billing_email TEXT,
+        bio TEXT,
+        location TEXT,
+        link_linkedin TEXT,
+        link_instagram TEXT,
+        link_website TEXT,
+        link_youtube TEXT,
+        link_facebook TEXT,
+        link_twitter TEXT,
+        myers_briggs TEXT,
+        picture_url TEXT,
+        account_created_at TIMESTAMPTZ,
+        member_joined_at TIMESTAMPTZ,
+        last_online_at TIMESTAMPTZ,
+        member_role TEXT,
+        attribution TEXT,
+        invited_by_id TEXT,
+        invited_by_name TEXT,
+        approved_by_id TEXT,
+        request_location TEXT,
+        survey_revenue_bracket TEXT,
+        survey_website TEXT,
+        survey_phone TEXT,
+        subscription_amount INTEGER,
+        subscription_currency TEXT,
+        subscription_interval TEXT,
+        subscription_tier TEXT,
+        stripe_subscription_id TEXT,
+        scraped_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `,
+  },
+  {
+    name: 'Create members indexes',
+    sql: `
+      CREATE INDEX IF NOT EXISTS idx_members_member_role ON members(member_role);
+      CREATE INDEX IF NOT EXISTS idx_members_attribution ON members(attribution);
+      CREATE INDEX IF NOT EXISTS idx_members_joined ON members(member_joined_at);
+      CREATE INDEX IF NOT EXISTS idx_members_last_online ON members(last_online_at);
+    `,
+  },
 ];
 
 async function migrate() {
@@ -114,7 +181,7 @@ async function migrate() {
   // Verify tables exist
   const result = await client.query(`
     SELECT table_name FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name IN ('posts', 'comments', 'drafts')
+    WHERE table_schema = 'public' AND table_name IN ('posts', 'comments', 'drafts', 'members')
     ORDER BY table_name
   `);
   console.log(`\nTables created: ${result.rows.map(r => r.table_name).join(', ')}`);
