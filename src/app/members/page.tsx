@@ -17,17 +17,10 @@ const TOPIC_COLORS: Record<string, string> = {
 };
 
 const TOPIC_BAR_COLORS: Record<string, string> = {
-  paid_ads: '#f87171',
-  content_organic: '#4ade80',
-  lead_gen_funnels: '#a78bfa',
-  email_outreach: '#60a5fa',
-  ai_tools: '#22d3ee',
-  sales_offers: '#facc15',
-  tracking_analytics: '#fb923c',
-  scaling_strategy: '#f472b6',
-  hiring: '#818cf8',
-  operations: '#2dd4bf',
-  conversational: '#6b7280',
+  paid_ads: '#f87171', content_organic: '#4ade80', lead_gen_funnels: '#a78bfa',
+  email_outreach: '#60a5fa', ai_tools: '#22d3ee', sales_offers: '#facc15',
+  tracking_analytics: '#fb923c', scaling_strategy: '#f472b6', hiring: '#818cf8',
+  operations: '#2dd4bf', conversational: '#6b7280',
 };
 
 const SEGMENT_COLORS: Record<string, string> = {
@@ -40,15 +33,43 @@ const SEGMENT_COLORS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  giver: 'text-green-400',
-  seeker: 'text-blue-400',
-  neutral: 'text-gray-400',
+  giver: 'text-green-400', seeker: 'text-blue-400', neutral: 'text-gray-400',
+};
+
+const ATTR_COLORS: Record<string, string> = {
+  invite: 'bg-indigo-900/50 text-indigo-300',
+  direct: 'bg-emerald-900/50 text-emerald-300',
+  affiliate: 'bg-amber-900/50 text-amber-300',
 };
 
 interface Member {
   authorId: string;
   authorName: string;
   authorBio: string;
+  location: string;
+  pictureUrl: string;
+  email: string;
+  billingEmail: string;
+  memberJoinedAt: string;
+  lastOnlineAt: string;
+  memberRole: string;
+  attribution: string;
+  invitedByName: string;
+  surveyRevenueBracket: string;
+  surveyWebsite: string;
+  surveyPhone: string;
+  subscriptionTier: string;
+  subscriptionAmount: number | null;
+  subscriptionCurrency: string;
+  subscriptionInterval: string;
+  stripeSubscriptionId: string;
+  linkLinkedin: string;
+  linkInstagram: string;
+  linkWebsite: string;
+  linkYoutube: string;
+  linkFacebook: string;
+  linkTwitter: string;
+  myersBriggs: string;
   postCount: number;
   commentCount: number;
   totalActivity: number;
@@ -74,6 +95,10 @@ interface Summary {
   activeSeekers: number;
   topicSpecialists: number;
   avgEngagement: number;
+  newThisMonth: number;
+  inviteCount: number;
+  directCount: number;
+  affiliateCount: number;
 }
 
 const SEGMENTS = [
@@ -102,6 +127,7 @@ const SORTS = [
 function relativeDate(dateStr: string) {
   if (!dateStr) return 'N/A';
   const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return 'N/A';
   const now = new Date();
   const diff = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
   if (diff === 0) return 'Today';
@@ -116,6 +142,7 @@ export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [scraping, setScraping] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [segment, setSegment] = useState('');
@@ -124,7 +151,6 @@ export default function MembersPage() {
   const [search, setSearch] = useState('');
   const [searchDebounced, setSearchDebounced] = useState('');
 
-  // Debounce search
   useEffect(() => {
     const t = setTimeout(() => setSearchDebounced(search), 300);
     return () => clearTimeout(t);
@@ -132,14 +158,14 @@ export default function MembersPage() {
 
   const fetchMembers = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams();
-    params.set('sort', sort);
-    if (segment) params.set('segment', segment);
-    if (topic) params.set('topic', topic);
-    if (searchDebounced) params.set('search', searchDebounced);
+    const p = new URLSearchParams();
+    p.set('sort', sort);
+    if (segment) p.set('segment', segment);
+    if (topic) p.set('topic', topic);
+    if (searchDebounced) p.set('search', searchDebounced);
 
     try {
-      const res = await fetch(`/api/members?${params}`);
+      const res = await fetch(`/api/members?${p}`);
       const json = await res.json();
       if (json.error) throw new Error(json.error);
       setMembers(json.members || []);
@@ -151,9 +177,25 @@ export default function MembersPage() {
     }
   }, [sort, segment, topic, searchDebounced]);
 
-  useEffect(() => {
-    fetchMembers();
-  }, [fetchMembers]);
+  useEffect(() => { fetchMembers(); }, [fetchMembers]);
+
+  const handleScrape = async () => {
+    setScraping(true);
+    try {
+      const res = await fetch('/api/scrape-members');
+      const data = await res.json();
+      if (data.error) {
+        alert(`Scrape failed: ${data.error}`);
+      } else {
+        alert(`Scraped ${data.membersScraped} members (${data.newMembers} new, ${data.updatedMembers} updated)`);
+        fetchMembers();
+      }
+    } catch (err) {
+      alert(`Scrape failed: ${err}`);
+    } finally {
+      setScraping(false);
+    }
+  };
 
   return (
     <div className="min-h-screen p-6 max-w-7xl mx-auto">
@@ -163,7 +205,14 @@ export default function MembersPage() {
           <h1 className="text-2xl font-bold text-white">Members</h1>
           <p className="text-gray-400 text-sm mt-1">Community member profiles and engagement data</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
+          <button
+            onClick={handleScrape}
+            disabled={scraping}
+            className="bg-[#6c8cff] hover:bg-[#5a7af0] disabled:opacity-50 text-white px-4 py-2 rounded text-sm font-medium"
+          >
+            {scraping ? 'Scraping...' : 'Scrape Members'}
+          </button>
           <a href="/" className="text-sm text-[#6c8cff] hover:text-white transition-colors">&larr; Posts</a>
           <a href="/dashboard" className="text-sm text-[#6c8cff] hover:text-white transition-colors">Dashboard</a>
         </div>
@@ -171,25 +220,37 @@ export default function MembersPage() {
 
       {/* Summary cards */}
       {summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
           <div className="bg-[#1a1d27] rounded-lg p-4">
-            <div className="text-sm text-gray-400">Total Members</div>
+            <div className="text-xs text-gray-400">Total Members</div>
             <div className="text-2xl font-bold text-white mt-1">{summary.totalMembers.toLocaleString()}</div>
           </div>
           <div className="bg-[#1a1d27] rounded-lg p-4">
-            <div className="text-sm text-gray-400">Power Givers</div>
+            <div className="text-xs text-gray-400">New This Month</div>
+            <div className="text-2xl font-bold text-cyan-400 mt-1">{summary.newThisMonth}</div>
+          </div>
+          <div className="bg-[#1a1d27] rounded-lg p-4">
+            <div className="text-xs text-gray-400">Power Givers</div>
             <div className="text-2xl font-bold text-green-400 mt-1">{summary.powerGivers}</div>
           </div>
           <div className="bg-[#1a1d27] rounded-lg p-4">
-            <div className="text-sm text-gray-400">Active Seekers</div>
+            <div className="text-xs text-gray-400">Active Seekers</div>
             <div className="text-2xl font-bold text-blue-400 mt-1">{summary.activeSeekers}</div>
           </div>
           <div className="bg-[#1a1d27] rounded-lg p-4">
-            <div className="text-sm text-gray-400">Topic Specialists</div>
+            <div className="text-xs text-gray-400">Topic Specialists</div>
             <div className="text-2xl font-bold text-purple-400 mt-1">{summary.topicSpecialists}</div>
           </div>
           <div className="bg-[#1a1d27] rounded-lg p-4">
-            <div className="text-sm text-gray-400">Avg Engagement</div>
+            <div className="text-xs text-gray-400">Invited</div>
+            <div className="text-2xl font-bold text-indigo-400 mt-1">{summary.inviteCount}</div>
+          </div>
+          <div className="bg-[#1a1d27] rounded-lg p-4">
+            <div className="text-xs text-gray-400">Direct</div>
+            <div className="text-2xl font-bold text-emerald-400 mt-1">{summary.directCount}</div>
+          </div>
+          <div className="bg-[#1a1d27] rounded-lg p-4">
+            <div className="text-xs text-gray-400">Avg Engagement</div>
             <div className="text-2xl font-bold text-white mt-1">{summary.avgEngagement.toLocaleString()}</div>
           </div>
         </div>
@@ -237,9 +298,39 @@ export default function MembersPage() {
           />
         ))}
         {!loading && members.length === 0 && (
-          <div className="text-gray-500 text-center py-12">No members found.</div>
+          <div className="text-gray-500 text-center py-12">No members found. Try scraping or adjusting filters.</div>
         )}
       </div>
+    </div>
+  );
+}
+
+function SocialLinks({ m }: { m: Member }) {
+  const links = [
+    { url: m.linkLinkedin, label: 'LinkedIn' },
+    { url: m.linkInstagram, label: 'Instagram' },
+    { url: m.linkWebsite, label: 'Website' },
+    { url: m.linkYoutube, label: 'YouTube' },
+    { url: m.linkFacebook, label: 'Facebook' },
+    { url: m.linkTwitter, label: 'Twitter/X' },
+  ].filter(l => l.url);
+
+  if (links.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {links.map(l => (
+        <a
+          key={l.label}
+          href={l.url.startsWith('http') ? l.url : `https://${l.url}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-[#6c8cff] hover:text-white bg-[#6c8cff]/10 px-2 py-0.5 rounded"
+          onClick={e => e.stopPropagation()}
+        >
+          {l.label}
+        </a>
+      ))}
     </div>
   );
 }
@@ -256,26 +347,37 @@ function MemberCard({ member: m, expanded, onToggle }: { member: Member; expande
       }`}
       onClick={onToggle}
     >
-      {/* Collapsed view */}
+      {/* Collapsed */}
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-white font-medium truncate">{m.authorName}</h3>
               <span className={`px-2 py-0.5 rounded text-xs border ${SEGMENT_COLORS[m.segment] || SEGMENT_COLORS['General']}`}>
                 {m.segment}
               </span>
+              {m.attribution && (
+                <span className={`px-2 py-0.5 rounded text-xs ${ATTR_COLORS[m.attribution] || 'bg-gray-700/50 text-gray-300'}`}>
+                  {m.attribution}
+                </span>
+              )}
+              {m.subscriptionTier && (
+                <span className="px-2 py-0.5 rounded text-xs bg-amber-900/30 text-amber-300">
+                  {m.subscriptionTier}
+                </span>
+              )}
             </div>
             {m.authorBio && (
               <p className="text-gray-500 text-sm mt-1 truncate">{m.authorBio}</p>
             )}
-            <div className="flex items-center gap-3 mt-2 text-sm text-gray-400">
+            <div className="flex items-center gap-3 mt-2 text-sm text-gray-400 flex-wrap">
               <span>{m.postCount} posts</span>
               <span>{m.commentCount} comments</span>
               <span className="text-gray-600">|</span>
               <span>Score: {m.engagementScore.toLocaleString()}</span>
+              {m.location && <><span className="text-gray-600">|</span><span>{m.location}</span></>}
               <span className="text-gray-600">|</span>
-              <span>Active {relativeDate(m.lastActive)}</span>
+              <span>Joined {relativeDate(m.memberJoinedAt)}</span>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -293,7 +395,7 @@ function MemberCard({ member: m, expanded, onToggle }: { member: Member; expande
         </div>
       </div>
 
-      {/* Expanded view */}
+      {/* Expanded */}
       {expanded && (
         <div className="border-t border-gray-800 p-4 space-y-4" onClick={e => e.stopPropagation()}>
           {/* Bio */}
@@ -304,16 +406,43 @@ function MemberCard({ member: m, expanded, onToggle }: { member: Member; expande
             </div>
           )}
 
-          {/* Stats row */}
+          {/* Profile details grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {m.email && (
+              <div>
+                <div className="text-xs text-gray-500">Email</div>
+                <div className="text-sm text-white truncate">{m.email}</div>
+              </div>
+            )}
             <div>
-              <div className="text-xs text-gray-500">First Active</div>
-              <div className="text-sm text-white">{m.firstActive ? new Date(m.firstActive).toLocaleDateString() : 'N/A'}</div>
+              <div className="text-xs text-gray-500">Joined</div>
+              <div className="text-sm text-white">{m.memberJoinedAt ? new Date(m.memberJoinedAt).toLocaleDateString() : 'N/A'}</div>
             </div>
             <div>
-              <div className="text-xs text-gray-500">Last Active</div>
-              <div className="text-sm text-white">{m.lastActive ? new Date(m.lastActive).toLocaleDateString() : 'N/A'}</div>
+              <div className="text-xs text-gray-500">Last Online</div>
+              <div className="text-sm text-white">{m.lastOnlineAt ? relativeDate(m.lastOnlineAt) : 'N/A'}</div>
             </div>
+            {m.invitedByName && (
+              <div>
+                <div className="text-xs text-gray-500">Invited By</div>
+                <div className="text-sm text-white">{m.invitedByName}</div>
+              </div>
+            )}
+            {m.surveyRevenueBracket && (
+              <div>
+                <div className="text-xs text-gray-500">Revenue Bracket</div>
+                <div className="text-sm text-white">{m.surveyRevenueBracket}</div>
+              </div>
+            )}
+            {m.subscriptionTier && (
+              <div>
+                <div className="text-xs text-gray-500">Subscription</div>
+                <div className="text-sm text-white">
+                  {m.subscriptionTier}
+                  {m.subscriptionAmount ? ` ($${(m.subscriptionAmount / 100).toFixed(0)}/${m.subscriptionInterval || 'mo'})` : ''}
+                </div>
+              </div>
+            )}
             <div>
               <div className="text-xs text-gray-500">Threads Engaged</div>
               <div className="text-sm text-white">{m.threadCount}</div>
@@ -324,18 +453,17 @@ function MemberCard({ member: m, expanded, onToggle }: { member: Member; expande
             </div>
           </div>
 
-          {/* Giver / Seeker split */}
+          {/* Social links */}
+          <SocialLinks m={m} />
+
+          {/* Role split bar */}
           {totalRoles > 0 && (
             <div>
               <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Role Split</div>
               <div className="flex h-3 rounded-full overflow-hidden bg-gray-800">
-                {giverPct > 0 && (
-                  <div className="bg-green-500" style={{ width: `${giverPct}%` }} title={`Giver ${giverPct}%`} />
-                )}
-                {seekerPct > 0 && (
-                  <div className="bg-blue-500" style={{ width: `${seekerPct}%` }} title={`Seeker ${seekerPct}%`} />
-                )}
-                <div className="bg-gray-600 flex-1" title={`Neutral ${100 - giverPct - seekerPct}%`} />
+                {giverPct > 0 && <div className="bg-green-500" style={{ width: `${giverPct}%` }} />}
+                {seekerPct > 0 && <div className="bg-blue-500" style={{ width: `${seekerPct}%` }} />}
+                <div className="bg-gray-600 flex-1" />
               </div>
               <div className="flex gap-4 mt-1 text-xs text-gray-400">
                 <span className="text-green-400">Giver {giverPct}%</span>
@@ -357,10 +485,7 @@ function MemberCard({ member: m, expanded, onToggle }: { member: Member; expande
                     <div key={t.topic} className="flex items-center gap-2">
                       <span className="text-xs text-gray-400 w-28 shrink-0 truncate">{t.topic.replace(/_/g, ' ')}</span>
                       <div className="flex-1 h-2 rounded-full bg-gray-800 overflow-hidden">
-                        <div
-                          className="h-full rounded-full"
-                          style={{ width: `${pct}%`, backgroundColor: TOPIC_BAR_COLORS[t.topic] || '#6b7280' }}
-                        />
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: TOPIC_BAR_COLORS[t.topic] || '#6b7280' }} />
                       </div>
                       <span className="text-xs text-gray-500 w-6 text-right">{t.count}</span>
                     </div>
@@ -377,9 +502,7 @@ function MemberCard({ member: m, expanded, onToggle }: { member: Member; expande
               <div className="space-y-1">
                 {m.recentPosts.map(p => (
                   <div key={p.id} className="flex items-center gap-2 text-sm">
-                    <span className="text-gray-500 text-xs shrink-0">
-                      {new Date(p.createdAt).toLocaleDateString()}
-                    </span>
+                    <span className="text-gray-500 text-xs shrink-0">{new Date(p.createdAt).toLocaleDateString()}</span>
                     {p.topic && (
                       <span className={`px-1.5 py-0 rounded text-[10px] ${TOPIC_COLORS[p.topic] || 'bg-gray-700 text-gray-300'}`}>
                         {p.topic.replace(/_/g, ' ')}

@@ -10,38 +10,18 @@ const TEAM_MEMBERS = [
   'Alex Hormozi',
 ];
 
-interface MemberRow {
-  authorId: string;
-  authorName: string;
-  authorBio: string;
-  postCount: number;
-  commentCount: number;
-  totalActivity: number;
-  firstActive: string;
-  lastActive: string;
-  primaryTopic: string | null;
-  primaryRole: string | null;
-  giverCount: number;
-  seekerCount: number;
-  neutralCount: number;
-  topicSpread: { topic: string; count: number }[];
-  engagementScore: number;
-  segment: string;
-  selfReplyCount: number;
-  threadCount: number;
-  conversationalPct: number;
-  recentPosts: { id: string; title: string; createdAt: string; topic: string | null }[];
-}
-
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const sortBy = params.get('sort') || 'engagement';
   const segmentFilter = params.get('segment') || '';
   const topicFilter = params.get('topic') || '';
   const search = params.get('search') || '';
+  const attributionFilter = params.get('attribution') || '';
+  const tierFilter = params.get('tier') || '';
 
   try {
     const [
+      membersResult,
       postsAgg,
       commentsAgg,
       selfReplies,
@@ -49,12 +29,13 @@ export async function GET(request: NextRequest) {
       threadCounts,
       recentPostsResult,
     ] = await Promise.all([
-      // A: Post aggregation per author
+      // Full member roster from members table
+      sql`SELECT * FROM members`,
+
+      // Post aggregation per author (by author_id)
       sql`
         SELECT
           author_id,
-          author_name,
-          MAX(author_bio) as author_bio,
           COUNT(*) as post_count,
           SUM((comment_count * 3) + upvotes) as post_engagement,
           COUNT(*) FILTER (WHERE role = 'giver') as giver_count,
@@ -64,166 +45,166 @@ export async function GET(request: NextRequest) {
           MIN(created_at) as first_post,
           MAX(created_at) as last_post
         FROM posts
-        WHERE author_id IS NOT NULL AND author_name IS NOT NULL
-        GROUP BY author_id, author_name
+        WHERE author_id IS NOT NULL
+        GROUP BY author_id
       `,
 
-      // B: Comment aggregation per author
+      // Comment aggregation per author
       sql`
         SELECT
           author_id,
-          author_name,
-          MAX(author_bio) as author_bio,
           COUNT(*) as comment_count,
           SUM((upvotes * 2) + 1) as comment_engagement,
           MIN(created_at) as first_comment,
           MAX(created_at) as last_comment
         FROM comments
-        WHERE author_id IS NOT NULL AND author_name IS NOT NULL
-        GROUP BY author_id, author_name
+        WHERE author_id IS NOT NULL
+        GROUP BY author_id
       `,
 
-      // C: Self-reply count per author
+      // Self-reply count
       sql`
-        SELECT
-          c.author_id,
-          COUNT(*) as self_reply_count
+        SELECT c.author_id, COUNT(*) as self_reply_count
         FROM comments c
         JOIN posts p ON c.post_id = p.id AND c.author_id = p.author_id
         WHERE c.author_id IS NOT NULL
         GROUP BY c.author_id
       `,
 
-      // D: Topic breakdown per author
+      // Topic breakdown per author
       sql`
-        SELECT
-          author_id,
-          topic,
-          COUNT(*) as count
+        SELECT author_id, topic, COUNT(*) as count
         FROM posts
         WHERE topic IS NOT NULL AND author_id IS NOT NULL
         GROUP BY author_id, topic
       `,
 
-      // E: Distinct thread count (unique posts commented on) per commenter
+      // Thread count per commenter
       sql`
-        SELECT
-          author_id,
-          COUNT(DISTINCT post_id) as thread_count
-        FROM comments
-        WHERE author_id IS NOT NULL
+        SELECT author_id, COUNT(DISTINCT post_id) as thread_count
+        FROM comments WHERE author_id IS NOT NULL
         GROUP BY author_id
       `,
 
-      // F: Recent posts per author (last 5 each, using window function)
+      // Recent posts (last 5 per author)
       sql`
         SELECT author_id, id, title, created_at, topic
         FROM (
           SELECT author_id, id, title, created_at, topic,
             ROW_NUMBER() OVER (PARTITION BY author_id ORDER BY created_at DESC) as rn
-          FROM posts
-          WHERE author_id IS NOT NULL
-        ) ranked
-        WHERE rn <= 5
+          FROM posts WHERE author_id IS NOT NULL
+        ) ranked WHERE rn <= 5
       `,
     ]);
 
-    // Build lookup maps
-    const commentMap = new Map<string, typeof commentsAgg.rows[0]>();
-    for (const row of commentsAgg.rows) {
-      commentMap.set(row.author_id, row);
-    }
+    // Build lookup maps for activity data
+    const postMap = new Map<string, (typeof postsAgg.rows)[0]>();
+    for (const r of postsAgg.rows) postMap.set(r.author_id, r);
+
+    const commentMap = new Map<string, (typeof commentsAgg.rows)[0]>();
+    for (const r of commentsAgg.rows) commentMap.set(r.author_id, r);
 
     const selfReplyMap = new Map<string, number>();
-    for (const row of selfReplies.rows) {
-      selfReplyMap.set(row.author_id, parseInt(row.self_reply_count));
-    }
+    for (const r of selfReplies.rows) selfReplyMap.set(r.author_id, parseInt(r.self_reply_count));
 
     const topicMap = new Map<string, { topic: string; count: number }[]>();
-    for (const row of topicBreakdown.rows) {
-      if (!topicMap.has(row.author_id)) topicMap.set(row.author_id, []);
-      topicMap.get(row.author_id)!.push({ topic: row.topic, count: parseInt(row.count) });
+    for (const r of topicBreakdown.rows) {
+      if (!topicMap.has(r.author_id)) topicMap.set(r.author_id, []);
+      topicMap.get(r.author_id)!.push({ topic: r.topic, count: parseInt(r.count) });
     }
 
     const threadMap = new Map<string, number>();
-    for (const row of threadCounts.rows) {
-      threadMap.set(row.author_id, parseInt(row.thread_count));
-    }
+    for (const r of threadCounts.rows) threadMap.set(r.author_id, parseInt(r.thread_count));
 
     const recentPostsMap = new Map<string, { id: string; title: string; createdAt: string; topic: string | null }[]>();
-    for (const row of recentPostsResult.rows) {
-      if (!recentPostsMap.has(row.author_id)) recentPostsMap.set(row.author_id, []);
-      recentPostsMap.get(row.author_id)!.push({
-        id: row.id,
-        title: row.title,
-        createdAt: row.created_at,
-        topic: row.topic,
-      });
+    for (const r of recentPostsResult.rows) {
+      if (!recentPostsMap.has(r.author_id)) recentPostsMap.set(r.author_id, []);
+      recentPostsMap.get(r.author_id)!.push({ id: r.id, title: r.title, createdAt: r.created_at, topic: r.topic });
     }
 
-    // Also gather comment-only authors (no posts)
-    const postAuthorIds = new Set(postsAgg.rows.map(r => r.author_id));
+    // Merge: members table is primary, enriched with activity data
+    const members = [];
 
-    // Merge into member objects
-    const members: MemberRow[] = [];
+    for (const m of membersResult.rows) {
+      const displayName = m.display_name || `${m.first_name || ''} ${m.last_name || ''}`.trim();
+      if (TEAM_MEMBERS.includes(displayName)) continue;
 
-    // Process post authors
-    for (const row of postsAgg.rows) {
-      const aid = row.author_id;
-      const cRow = commentMap.get(aid);
-      const postCount = parseInt(row.post_count);
+      const pRow = postMap.get(m.id);
+      const cRow = commentMap.get(m.id);
+
+      const postCount = pRow ? parseInt(pRow.post_count) : 0;
       const commentCount = cRow ? parseInt(cRow.comment_count) : 0;
       const totalActivity = postCount + commentCount;
-      const postEngagement = parseInt(row.post_engagement) || 0;
+      const postEngagement = pRow ? parseInt(pRow.post_engagement) || 0 : 0;
       const commentEngagement = cRow ? parseInt(cRow.comment_engagement) || 0 : 0;
       const engagementScore = postEngagement + commentEngagement;
 
-      const giverCount = parseInt(row.giver_count);
-      const seekerCount = parseInt(row.seeker_count);
-      const neutralCount = parseInt(row.neutral_count);
-      const conversationalCount = parseInt(row.conversational_count);
-      const selfReplyCount = selfReplyMap.get(aid) || 0;
+      const giverCount = pRow ? parseInt(pRow.giver_count) : 0;
+      const seekerCount = pRow ? parseInt(pRow.seeker_count) : 0;
+      const neutralCount = pRow ? parseInt(pRow.neutral_count) : 0;
+      const conversationalCount = pRow ? parseInt(pRow.conversational_count) : 0;
+      const selfReplyCount = selfReplyMap.get(m.id) || 0;
 
-      const topics = topicMap.get(aid) || [];
+      const topics = topicMap.get(m.id) || [];
       const topicsSorted = [...topics].sort((a, b) => b.count - a.count);
       const nonConvTopics = topicsSorted.filter(t => t.topic !== 'conversational');
       const primaryTopic = nonConvTopics.length > 0 ? nonConvTopics[0].topic : null;
 
       const roleCounts = { giver: giverCount, seeker: seekerCount, neutral: neutralCount };
       const primaryRole = (Object.entries(roleCounts).sort((a, b) => b[1] - a[1])[0])?.[0] || null;
+      const effectivePrimaryRole = totalActivity > 0 ? primaryRole : null;
 
-      const firstPost = row.first_post ? new Date(row.first_post).toISOString() : null;
-      const lastPost = row.last_post ? new Date(row.last_post).toISOString() : null;
-      const firstComment = cRow?.first_comment ? new Date(cRow.first_comment).toISOString() : null;
-      const lastComment = cRow?.last_comment ? new Date(cRow.last_comment).toISOString() : null;
-
-      const firstActive = [firstPost, firstComment].filter(Boolean).sort()[0] || firstPost || '';
-      const lastActive = [lastPost, lastComment].filter(Boolean).sort().reverse()[0] || lastPost || '';
-
-      const uniqueTopicCount = nonConvTopics.length;
-      const threadCount = threadMap.get(aid) || 0;
+      const threadCount = threadMap.get(m.id) || 0;
       const conversationalPct = postCount > 0 ? conversationalCount / postCount : 0;
 
-      // Segment assignment
-      const adjustedGiverCount = giverCount - selfReplyCount; // don't count self-replies as giver activity
-      const segment = computeSegment(
-        totalActivity, adjustedGiverCount, seekerCount, uniqueTopicCount,
-        topicsSorted, conversationalPct, threadCount
-      );
+      const adjustedGiverCount = Math.max(0, giverCount - selfReplyCount);
+      const segment = computeSegment(totalActivity, adjustedGiverCount, seekerCount, nonConvTopics.length, topicsSorted, conversationalPct, threadCount);
+
+      // Dates: prefer activity dates when available, fall back to member table
+      const firstPost = pRow?.first_post ? new Date(pRow.first_post).toISOString() : null;
+      const lastPost = pRow?.last_post ? new Date(pRow.last_post).toISOString() : null;
+      const firstComment = cRow?.first_comment ? new Date(cRow.first_comment).toISOString() : null;
+      const lastComment = cRow?.last_comment ? new Date(cRow.last_comment).toISOString() : null;
+      const firstActive = [firstPost, firstComment].filter(Boolean).sort()[0] || m.member_joined_at || '';
+      const lastActive = [lastPost, lastComment].filter(Boolean).sort().reverse()[0] || m.last_online_at || '';
 
       members.push({
-        authorId: aid,
-        authorName: row.author_name,
-        authorBio: cRow?.author_bio && (!row.author_bio || (cRow.author_bio.length > row.author_bio.length))
-          ? cRow.author_bio
-          : row.author_bio || '',
+        // Profile from members table
+        authorId: m.id,
+        authorName: displayName,
+        authorBio: m.bio || '',
+        location: m.location || '',
+        pictureUrl: m.picture_url || '',
+        email: m.invite_email || m.email || '',
+        billingEmail: m.billing_email || '',
+        memberJoinedAt: m.member_joined_at || '',
+        lastOnlineAt: m.last_online_at || '',
+        memberRole: m.member_role || '',
+        attribution: m.attribution || '',
+        invitedByName: m.invited_by_name || '',
+        surveyRevenueBracket: m.survey_revenue_bracket || '',
+        surveyWebsite: m.survey_website || '',
+        surveyPhone: m.survey_phone || '',
+        subscriptionTier: m.subscription_tier || '',
+        subscriptionAmount: m.subscription_amount,
+        subscriptionCurrency: m.subscription_currency || '',
+        subscriptionInterval: m.subscription_interval || '',
+        stripeSubscriptionId: m.stripe_subscription_id || '',
+        linkLinkedin: m.link_linkedin || '',
+        linkInstagram: m.link_instagram || '',
+        linkWebsite: m.link_website || '',
+        linkYoutube: m.link_youtube || '',
+        linkFacebook: m.link_facebook || '',
+        linkTwitter: m.link_twitter || '',
+        myersBriggs: m.myers_briggs || '',
+        // Activity data
         postCount,
         commentCount,
         totalActivity,
         firstActive,
         lastActive,
         primaryTopic,
-        primaryRole,
+        primaryRole: effectivePrimaryRole,
         giverCount,
         seekerCount,
         neutralCount,
@@ -233,54 +214,24 @@ export async function GET(request: NextRequest) {
         selfReplyCount,
         threadCount,
         conversationalPct,
-        recentPosts: recentPostsMap.get(aid) || [],
+        recentPosts: recentPostsMap.get(m.id) || [],
       });
     }
-
-    // Add comment-only authors
-    for (const cRow of commentsAgg.rows) {
-      if (postAuthorIds.has(cRow.author_id)) continue;
-      const aid = cRow.author_id;
-      const commentCount = parseInt(cRow.comment_count);
-      const commentEngagement = parseInt(cRow.comment_engagement) || 0;
-      const threadCount = threadMap.get(aid) || 0;
-
-      const segment = commentCount < 3 ? 'Lurker' : 'General';
-
-      members.push({
-        authorId: aid,
-        authorName: cRow.author_name,
-        authorBio: cRow.author_bio || '',
-        postCount: 0,
-        commentCount,
-        totalActivity: commentCount,
-        firstActive: cRow.first_comment ? new Date(cRow.first_comment).toISOString() : '',
-        lastActive: cRow.last_comment ? new Date(cRow.last_comment).toISOString() : '',
-        primaryTopic: null,
-        primaryRole: null,
-        giverCount: 0,
-        seekerCount: 0,
-        neutralCount: 0,
-        topicSpread: [],
-        engagementScore: commentEngagement,
-        segment,
-        selfReplyCount: selfReplyMap.get(aid) || 0,
-        threadCount,
-        conversationalPct: 0,
-        recentPosts: [],
-      });
-    }
-
-    // Filter out team members
-    let filtered = members.filter(m => !TEAM_MEMBERS.includes(m.authorName));
 
     // Apply filters
+    let filtered = members;
+
     if (segmentFilter) {
-      const segLabel = segmentFilter.replace(/_/g, ' ');
       filtered = filtered.filter(m => m.segment.toLowerCase().replace(/ /g, '_') === segmentFilter);
     }
     if (topicFilter) {
       filtered = filtered.filter(m => m.primaryTopic === topicFilter);
+    }
+    if (attributionFilter) {
+      filtered = filtered.filter(m => m.attribution === attributionFilter);
+    }
+    if (tierFilter) {
+      filtered = filtered.filter(m => m.subscriptionTier.toLowerCase().includes(tierFilter.toLowerCase()));
     }
     if (search) {
       const q = search.toLowerCase();
@@ -304,18 +255,26 @@ export async function GET(request: NextRequest) {
         break;
     }
 
-    // Compute summary stats
-    const allNonTeam = members.filter(m => !TEAM_MEMBERS.includes(m.authorName));
-    const totalMembers = allNonTeam.length;
-    const powerGivers = allNonTeam.filter(m => m.segment === 'Power Giver').length;
-    const activeSeekers = allNonTeam.filter(m => m.segment === 'Active Seeker').length;
-    const topicSpecialists = allNonTeam.filter(m => m.segment === 'Topic Specialist').length;
+    // Summary stats
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const totalMembers = members.length;
+    const powerGivers = members.filter(m => m.segment === 'Power Giver').length;
+    const activeSeekers = members.filter(m => m.segment === 'Active Seeker').length;
+    const topicSpecialists = members.filter(m => m.segment === 'Topic Specialist').length;
     const avgEngagement = totalMembers > 0
-      ? Math.round(allNonTeam.reduce((s, m) => s + m.engagementScore, 0) / totalMembers)
+      ? Math.round(members.reduce((s, m) => s + m.engagementScore, 0) / totalMembers)
       : 0;
+    const newThisMonth = members.filter(m => m.memberJoinedAt && new Date(m.memberJoinedAt) >= thirtyDaysAgo).length;
+    const inviteCount = members.filter(m => m.attribution === 'invite').length;
+    const directCount = members.filter(m => m.attribution === 'direct').length;
+    const affiliateCount = members.filter(m => m.attribution === 'affiliate').length;
 
     return NextResponse.json({
-      summary: { totalMembers, powerGivers, activeSeekers, topicSpecialists, avgEngagement },
+      summary: {
+        totalMembers, powerGivers, activeSeekers, topicSpecialists, avgEngagement,
+        newThisMonth, inviteCount, directCount, affiliateCount,
+      },
       members: filtered,
     });
   } catch (error) {
@@ -338,19 +297,14 @@ function computeSegment(
 ): string {
   if (totalActivity < 3) return 'Lurker';
 
-  const totalRoleCount = adjustedGiverCount + seekerCount;
-
-  // Power Giver: 10+ activities, majority giver, 3+ topics
-  if (totalActivity >= 10 && totalRoleCount > 0 && adjustedGiverCount > seekerCount && uniqueTopicCount >= 3) {
+  if (totalActivity >= 10 && adjustedGiverCount > seekerCount && uniqueTopicCount >= 3) {
     return 'Power Giver';
   }
 
-  // Active Seeker: 5+ activities, majority seeker
   if (totalActivity >= 5 && seekerCount > adjustedGiverCount) {
     return 'Active Seeker';
   }
 
-  // Topic Specialist: 70%+ activity in single topic
   if (topicsSorted.length > 0) {
     const topTopicCount = topicsSorted[0].count;
     const totalTopicPosts = topicsSorted.reduce((s, t) => s + t.count, 0);
@@ -359,7 +313,6 @@ function computeSegment(
     }
   }
 
-  // Social Connector: high conversational %, 5+ threads
   if (conversationalPct >= 0.4 && threadCount >= 5) {
     return 'Social Connector';
   }
