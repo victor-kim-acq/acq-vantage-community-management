@@ -31,3 +31,39 @@ For each item, determine:
 - "conversational" is ONLY for content with zero substantive information (pure social interaction)
 - Short encouraging comments like "Great post!" with no added insight = conversational + neutral
 - If someone shares a win AND asks for advice, classify as seeker.
+
+## Input Format
+Content will be provided in batches of up to 10 items:
+```
+[0] Type: post | Post ID: xxx
+Title: ...
+Content: ...
+---
+[1] Type: comment | Post ID: xxx
+Title:
+Content: ...
+---
+```
+
+## Output Format
+Respond with ONLY valid JSON array, no other text:
+```json
+[{"id": 0, "topic": "topic_name", "role": "giver/seeker/neutral", "reasoning": "one sentence why"}]
+```
+
+## Edge Case Examples
+
+### "I want to learn about Meta ads" → seeker + paid_ads
+Not a giver just because they mention ads. They're seeking knowledge.
+
+### "Here's my 5-step process for cold email" → giver + email_outreach
+Teaching others = giver, regardless of whether they ask a question at the end.
+
+### "🙌🔥" → neutral + conversational
+Pure reaction with no substantive content.
+
+### "Great breakdown! I'd also add that retargeting works better with..." → giver + paid_ads
+Starts conversational but adds real value = giver, classified by the substantive topic.
+
+### "Has anyone tried using ChatGPT to write ad copy?" → seeker + ai_tools
+Primary intent is the AI tool question, even though ads are mentioned.
