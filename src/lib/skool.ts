@@ -234,6 +234,16 @@ export interface SkoolMember {
   stripeSubscriptionId: string;
 }
 
+function parseTimestamp(val: string | null | undefined): string {
+  if (!val) return '';
+  const n = Number(val);
+  if (isNaN(n)) return val; // already a date string
+  // Nanosecond timestamps (>1e15) → convert to milliseconds
+  const ms = n > 1e15 ? Math.floor(n / 1e6) : n > 1e12 ? n : n * 1000;
+  const d = new Date(ms);
+  return isNaN(d.getTime()) ? '' : d.toISOString();
+}
+
 function parseSurvey(surveyStr: string): { revenue?: string; website?: string; phone?: string } {
   if (!surveyStr) return {};
   try {
@@ -309,7 +319,7 @@ function parseSkoolMember(user: Record<string, unknown>): SkoolMember {
     pictureUrl: (meta.pictureProfile as string) || '',
     accountCreatedAt: (user.createdAt as string) || '',
     memberJoinedAt: (member.createdAt as string) || '',
-    lastOnlineAt: (meta.lastOffline as string) || (memberMeta.lastOffline as string) || '',
+    lastOnlineAt: parseTimestamp((meta.lastOffline as string) || (memberMeta.lastOffline as string) || ''),
     memberRole: (member.role as string) || '',
     attribution: (memberMeta.attrComp as string) || '',
     invitedById: (memberMeta.invitedBy as string) || '',
