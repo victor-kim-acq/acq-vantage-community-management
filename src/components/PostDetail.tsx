@@ -13,6 +13,7 @@ export default function PostDetail({ postId, onStatusChange }: PostDetailProps) 
   const [comments, setComments] = useState<Comment[]>([]);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
   const [editedDraft, setEditedDraft] = useState<Record<number, string>>({});
   const [draftView, setDraftView] = useState<'short' | 'long'>('short');
   const [copied, setCopied] = useState(false);
@@ -30,6 +31,7 @@ export default function PostDetail({ postId, onStatusChange }: PostDetailProps) 
 
   const generateDraft = async () => {
     setGenerating(true);
+    setDraftError(null);
     try {
       const res = await fetch('/api/draft', {
         method: 'POST',
@@ -37,11 +39,18 @@ export default function PostDetail({ postId, onStatusChange }: PostDetailProps) 
         body: JSON.stringify({ postId }),
       });
       const data = await res.json();
+      if (!res.ok || data.error) {
+        setDraftError(data.error || `Request failed (${res.status})`);
+        return;
+      }
       if (data.drafts) {
         setDrafts(prev => [...data.drafts, ...prev]);
       }
     } catch (err) {
-      console.error('Failed to generate draft:', err);
+      const message = err instanceof Error ? err.message : 'Failed to generate draft';
+      setDraftError(message.includes('timeout') || message.includes('aborted')
+        ? 'Request timed out — this post may have too many comments. Try again.'
+        : message);
     } finally {
       setGenerating(false);
     }
@@ -222,7 +231,13 @@ export default function PostDetail({ postId, onStatusChange }: PostDetailProps) 
           </>
         )}
 
-        {drafts.length === 0 && !generating && (
+        {draftError && (
+          <div className="bg-red-900/30 border border-red-700 text-red-300 rounded p-3 text-sm mb-3">
+            <span className="font-medium">Draft generation failed:</span> {draftError}
+          </div>
+        )}
+
+        {drafts.length === 0 && !generating && !draftError && (
           <div className="text-gray-500 text-sm">
             No drafts yet. Click &quot;Generate Draft&quot; to create one.
           </div>

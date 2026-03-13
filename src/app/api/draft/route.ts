@@ -31,9 +31,11 @@ export async function POST(request: NextRequest) {
     const systemPrompt = loadReplyDraftingPrompt();
     const voiceProfile = post.voiceProfile || 'A';
 
-    // Build thread context
-    const threadContext = comments.length > 0
-      ? comments.map(c => `- ${c.authorName}: ${c.content} (${c.upvotes} upvotes)`).join('\n')
+    // Build thread context (limit to last 30 comments to avoid timeout)
+    const recentComments = comments.slice(-30);
+    const threadContext = recentComments.length > 0
+      ? (comments.length > 30 ? `[Showing last 30 of ${comments.length} comments]\n` : '') +
+        recentComments.map(c => `- ${c.authorName}: ${c.content} (${c.upvotes} upvotes)`).join('\n')
       : 'No comments yet.';
 
     // Build voice profile instructions

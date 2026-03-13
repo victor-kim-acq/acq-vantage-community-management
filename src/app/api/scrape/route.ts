@@ -44,7 +44,9 @@ export async function GET(request: NextRequest) {
       const isNew = await upsertPost({
         ...post,
         scrapedAt: new Date().toISOString(),
-        skoolUrl: `https://www.skool.com/acq/${post.slug}`,
+        skoolUrl: post.slug
+          ? `https://www.skool.com/acq/${post.slug}?p=${post.id}`
+          : `https://www.skool.com/acq?p=${post.id}`,
       });
       if (isNew) {
         result.newPosts++;
