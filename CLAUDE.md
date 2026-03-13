@@ -34,7 +34,7 @@ Initialize the database by calling:
 ```
 POST /api/init-db  { "secret": "<CRON_SECRET>" }
 ```
-This creates the `posts`, `comments`, and `drafts` tables with indexes. It's idempotent.
+This creates the `posts`, `comments`, `drafts`, and `members` tables with indexes. It's idempotent.
 
 ## Architecture
 
@@ -42,21 +42,27 @@ This creates the `posts`, `comments`, and `drafts` tables with indexes. It's ide
 Scrape (Skool API) → Classify (Anthropic) → Browse (Dashboard) → Draft (Anthropic)
 ```
 
-1. **Scraper** (`/api/scrape`): Fetches posts and comments from Skool's undocumented API, upserts to Postgres
-2. **Classifier** (`/api/classify`): Sends unclassified posts to Anthropic in batches of 10, assigns topic + role + repliers
-3. **Dashboard** (`/`): Browse, filter, and manage posts with a dark-themed UI
-4. **Drafter** (`/api/draft`): Generates voice-matched reply drafts on demand
+1. **Post Scraper** (`/api/scrape`): Fetches posts and comments from Skool's undocumented API, upserts to Postgres, auto-classifies
+2. **Member Scraper** (`/api/scrape-members`): Fetches full member profiles from Skool, upserts to members table
+3. **Classifier** (`/api/classify`): Sends unclassified posts to Anthropic in batches of 10, assigns topic + role + repliers
+4. **Posts Page** (`/`): Browse, filter, and manage posts with a dark-themed UI
+5. **Members Page** (`/members`): View member profiles, engagement scores, segmentation, and activity data
+6. **Analytics Dashboard** (`/dashboard`): Charts for posts/week, active users/week, topic trends, seeker response rates, time-to-response
+7. **Drafter** (`/api/draft`): Generates voice-matched reply drafts on demand
 
 ## API Routes
 
 | Route | Method | Auth | Description |
 |---|---|---|---|
-| `/api/scrape` | GET | `?secret=` | Scrape posts + comments from Skool. Params: `pages`, `since` |
-| `/api/classify` | POST | body/query `secret` | Classify unclassified posts via Anthropic |
-| `/api/draft` | POST | body `secret` | Generate draft reply for a specific post |
-| `/api/posts` | GET | none | List posts with filters. Params: `topic`, `role`, `replier`, `status`, `search`, `postId` |
+| `/api/scrape` | GET | `?secret=` or cookie | Scrape posts + comments from Skool, auto-classify. Params: `pages`, `since` |
+| `/api/scrape-members` | GET | `?secret=` or cookie | Scrape all member profiles from Skool |
+| `/api/classify` | POST | body/query `secret` or cookie | Classify unclassified posts via Anthropic |
+| `/api/draft` | POST | body `secret` or cookie | Generate draft reply for a specific post |
+| `/api/posts` | GET | none | List posts with filters. Params: `topic`, `role`, `replier`, `status`, `search`, `dateFrom`, `dateTo`, `author`, `postId`, `authors=1` |
 | `/api/posts/status` | PATCH | none | Update post reply status |
-| `/api/stats` | GET | none | Dashboard statistics |
+| `/api/members` | GET | none | List members with engagement scoring. Params: `sort`, `segment`, `topic`, `search`, `attribution`, `tier`, `joinedFrom`, `joinedTo` |
+| `/api/dashboard` | GET | none | Analytics data (posts/week, active users, topic trends, response rates). Params: `range` (30d/90d/all) |
+| `/api/stats` | GET | none | Quick dashboard statistics |
 | `/api/init-db` | POST | body `secret` | Initialize database tables |
 
 ## Prompt Files
@@ -72,7 +78,9 @@ All AI prompts live in `/prompts/` and are loaded at runtime by `src/lib/prompts
 ## Deployment
 
 - Deploy to Vercel with a linked Postgres database
-- `vercel.json` configures a daily cron at 2pm UTC (9am ET) hitting `/api/scrape`
+- `vercel.json` configures two cron jobs:
+  - **Daily post scrape**: 2pm UTC (9am ET) → `/api/scrape`
+  - **Weekly member scrape**: Sundays 3pm UTC (10am ET) → `/api/scrape-members`
 - The `CRON_SECRET` env var must be set in Vercel
 
 ## Team Members & Routing
@@ -101,3 +109,6 @@ Excluded from analysis: Saulo Castelo Branco, Saulo Medeiros, Caio Beleza, Victo
 - **Comments endpoint**: Uses `api2.skool.com` (different domain from posts which use `www.skool.com`).
 - **Post sorting**: Use `s=newest` for chronological order (NOT `newest-cm`).
 - **Comment structure**: Recursive tree — flatten with `flattenComments()` in `src/lib/skool.ts`.
+- **Timestamps**: Posts and members may return nanosecond timestamps (>1e15). Use `parseTimestamp()` in `src/lib/skool.ts` to normalize.
+- **Members endpoint**: Uses `www.skool.com/_next/data/{buildId}/acq/-/members.json?p={page}`. Paginated, returns all members including profile, subscription, survey, and social data.
+- **Member fields**: `metadata` contains bio/location/social links. `member.metadata` contains survey, subscription (`mmbp`), attribution (`attrComp`), `lastOffline`. Survey and subscription are JSON strings that need parsing.
