@@ -18,6 +18,8 @@ export async function GET(request: NextRequest) {
   const search = params.get('search') || '';
   const attributionFilter = params.get('attribution') || '';
   const tierFilter = params.get('tier') || '';
+  const joinedFrom = params.get('joinedFrom') || '';
+  const joinedTo = params.get('joinedTo') || '';
 
   try {
     const [
@@ -231,7 +233,20 @@ export async function GET(request: NextRequest) {
       filtered = filtered.filter(m => m.attribution === attributionFilter);
     }
     if (tierFilter) {
-      filtered = filtered.filter(m => m.subscriptionTier.toLowerCase().includes(tierFilter.toLowerCase()));
+      if (tierFilter === 'free') {
+        filtered = filtered.filter(m => !m.subscriptionTier || m.subscriptionTier.toLowerCase() === 'free');
+      } else {
+        filtered = filtered.filter(m => m.subscriptionTier.toLowerCase().includes(tierFilter.toLowerCase()));
+      }
+    }
+    if (joinedFrom) {
+      const from = new Date(joinedFrom);
+      filtered = filtered.filter(m => m.memberJoinedAt && new Date(m.memberJoinedAt) >= from);
+    }
+    if (joinedTo) {
+      const to = new Date(joinedTo);
+      to.setDate(to.getDate() + 1); // include the end date
+      filtered = filtered.filter(m => m.memberJoinedAt && new Date(m.memberJoinedAt) < to);
     }
     if (search) {
       const q = search.toLowerCase();

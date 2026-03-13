@@ -220,12 +220,22 @@ export async function updatePostStatus(id: string, status: string, assignedTo?: 
   }
 }
 
+export async function getDistinctAuthors(): Promise<string[]> {
+  const result = await sql`
+    SELECT DISTINCT author_name FROM posts WHERE author_name IS NOT NULL ORDER BY author_name
+  `;
+  return result.rows.map(r => r.author_name as string);
+}
+
 export async function getPosts(filters: {
   topic?: string;
   role?: string;
   replier?: string;
   status?: string;
   search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  author?: string;
   limit?: number;
   offset?: number;
 }): Promise<{ posts: Post[]; total: number }> {
@@ -253,6 +263,18 @@ export async function getPosts(filters: {
     conditions.push(`(title ILIKE $${paramIndex} OR content ILIKE $${paramIndex})`);
     values.push(`%${filters.search}%`);
     paramIndex++;
+  }
+  if (filters.dateFrom) {
+    conditions.push(`created_at >= $${paramIndex++}`);
+    values.push(filters.dateFrom);
+  }
+  if (filters.dateTo) {
+    conditions.push(`created_at < ($${paramIndex++})::date + 1`);
+    values.push(filters.dateTo);
+  }
+  if (filters.author) {
+    conditions.push(`author_name = $${paramIndex++}`);
+    values.push(filters.author);
   }
 
   const where = conditions.join(' AND ');

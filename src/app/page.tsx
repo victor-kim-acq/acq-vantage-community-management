@@ -17,7 +17,11 @@ export default function Dashboard() {
     replier: '',
     status: '',
     search: '',
+    dateFrom: '',
+    dateTo: '',
+    author: '',
   });
+  const [authors, setAuthors] = useState<string[]>([]);
   const [loading, setLoading] = useState({
     scraping: false,
     classifying: false,
@@ -31,6 +35,9 @@ export default function Dashboard() {
     if (filters.replier) params.set('replier', filters.replier);
     if (filters.status) params.set('status', filters.status);
     if (filters.search) params.set('search', filters.search);
+    if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
+    if (filters.dateTo) params.set('dateTo', filters.dateTo);
+    if (filters.author) params.set('author', filters.author);
 
     try {
       const res = await fetch(`/api/posts?${params}`);
@@ -45,6 +52,16 @@ export default function Dashboard() {
   useEffect(() => {
     fetchPosts();
   }, [fetchPosts, refreshKey]);
+
+  // Fetch distinct authors for the author filter dropdown
+  useEffect(() => {
+    fetch('/api/posts?authors=1')
+      .then(res => res.json())
+      .then(data => {
+        if (data.authors) setAuthors(data.authors);
+      })
+      .catch(console.error);
+  }, []);
 
   // Debounce search
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
@@ -133,6 +150,7 @@ export default function Dashboard() {
         onScrape={handleScrape}
         onClassify={handleClassify}
         loading={loading}
+        authors={authors}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

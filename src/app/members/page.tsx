@@ -150,6 +150,9 @@ export default function MembersPage() {
   const [sort, setSort] = useState('engagement');
   const [search, setSearch] = useState('');
   const [searchDebounced, setSearchDebounced] = useState('');
+  const [tier, setTier] = useState('');
+  const [joinedFrom, setJoinedFrom] = useState('');
+  const [joinedTo, setJoinedTo] = useState('');
 
   useEffect(() => {
     const t = setTimeout(() => setSearchDebounced(search), 300);
@@ -163,6 +166,9 @@ export default function MembersPage() {
     if (segment) p.set('segment', segment);
     if (topic) p.set('topic', topic);
     if (searchDebounced) p.set('search', searchDebounced);
+    if (tier) p.set('tier', tier);
+    if (joinedFrom) p.set('joinedFrom', joinedFrom);
+    if (joinedTo) p.set('joinedTo', joinedTo);
 
     try {
       const res = await fetch(`/api/members?${p}`);
@@ -175,7 +181,7 @@ export default function MembersPage() {
     } finally {
       setLoading(false);
     }
-  }, [sort, segment, topic, searchDebounced]);
+  }, [sort, segment, topic, searchDebounced, tier, joinedFrom, joinedTo]);
 
   useEffect(() => { fetchMembers(); }, [fetchMembers]);
 
@@ -269,6 +275,14 @@ export default function MembersPage() {
           {TOPICS.filter(Boolean).map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
         </select>
 
+        <select value={tier} onChange={e => setTier(e.target.value)}
+          className="bg-[#1a1d27] text-white border border-gray-700 rounded px-3 py-2 text-sm">
+          <option value="">All Tiers</option>
+          <option value="standard">Standard</option>
+          <option value="premium">Premium</option>
+          <option value="free">Free / Invited</option>
+        </select>
+
         <select value={sort} onChange={e => setSort(e.target.value)}
           className="bg-[#1a1d27] text-white border border-gray-700 rounded px-3 py-2 text-sm">
           {SORTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -281,6 +295,25 @@ export default function MembersPage() {
           onChange={e => setSearch(e.target.value)}
           className="bg-[#1a1d27] text-white border border-gray-700 rounded px-3 py-2 text-sm flex-1 min-w-[200px]"
         />
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">Joined:</span>
+          <input
+            type="date"
+            value={joinedFrom}
+            onChange={e => setJoinedFrom(e.target.value)}
+            className="bg-[#1a1d27] text-white border border-gray-700 rounded px-2 py-2 text-sm"
+            title="Joined from"
+          />
+          <span className="text-gray-500 text-sm">to</span>
+          <input
+            type="date"
+            value={joinedTo}
+            onChange={e => setJoinedTo(e.target.value)}
+            className="bg-[#1a1d27] text-white border border-gray-700 rounded px-2 py-2 text-sm"
+            title="Joined to"
+          />
+        </div>
 
         <span className="text-sm text-gray-500 ml-auto">
           {loading ? 'Loading...' : `${members.length} members`}

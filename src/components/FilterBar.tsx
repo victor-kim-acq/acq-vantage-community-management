@@ -7,11 +7,15 @@ interface FilterBarProps {
     replier: string;
     status: string;
     search: string;
+    dateFrom: string;
+    dateTo: string;
+    author: string;
   };
   onChange: (filters: FilterBarProps['filters']) => void;
   onScrape: () => void;
   onClassify: () => void;
   loading: { scraping: boolean; classifying: boolean };
+  authors?: string[];
 }
 
 const TOPICS = [
@@ -24,7 +28,7 @@ const ROLES = ['', 'giver', 'seeker', 'neutral'];
 const REPLIERS = ['', 'Saulo', 'Caio', 'Victor', 'Samaria'];
 const STATUSES = ['', 'pending', 'drafted', 'replied', 'skipped'];
 
-export default function FilterBar({ filters, onChange, onScrape, onClassify, loading }: FilterBarProps) {
+export default function FilterBar({ filters, onChange, onScrape, onClassify, loading, authors = [] }: FilterBarProps) {
   const update = (key: string, value: string) => {
     onChange({ ...filters, [key]: value });
   };
@@ -75,6 +79,17 @@ export default function FilterBar({ filters, onChange, onScrape, onClassify, loa
         ))}
       </select>
 
+      <select
+        value={filters.author}
+        onChange={e => update('author', e.target.value)}
+        className="bg-[#1a1d27] text-white border border-gray-700 rounded px-3 py-2 text-sm"
+      >
+        <option value="">All Authors</option>
+        {authors.map(a => (
+          <option key={a} value={a}>{a}</option>
+        ))}
+      </select>
+
       <input
         type="text"
         placeholder="Search posts..."
@@ -82,6 +97,24 @@ export default function FilterBar({ filters, onChange, onScrape, onClassify, loa
         onChange={e => update('search', e.target.value)}
         className="bg-[#1a1d27] text-white border border-gray-700 rounded px-3 py-2 text-sm flex-1 min-w-[200px]"
       />
+
+      <div className="flex items-center gap-2">
+        <input
+          type="date"
+          value={filters.dateFrom}
+          onChange={e => update('dateFrom', e.target.value)}
+          className="bg-[#1a1d27] text-white border border-gray-700 rounded px-2 py-2 text-sm"
+          title="From date"
+        />
+        <span className="text-gray-500 text-sm">to</span>
+        <input
+          type="date"
+          value={filters.dateTo}
+          onChange={e => update('dateTo', e.target.value)}
+          className="bg-[#1a1d27] text-white border border-gray-700 rounded px-2 py-2 text-sm"
+          title="To date"
+        />
+      </div>
 
       <div className="flex gap-2 ml-auto">
         <button
